@@ -72,12 +72,19 @@ async def run_local_agent():
                 if user_input.lower() in ["reset", "clear"]:
                     print("[C2S Agent]: Clearing search filters.")
                     current_filters = {}
+                    continue
 
                 extraction_prompt = f"""
                 ### INSTRUCTION ###
                 Extract car search filters from the user input.
                 User may ask for the total quantity of cars you have in stock, return the according value.
                 Return ONLY a JSON object. No conversation. No explanations.
+                
+                ### STRICT RULES ###
+                - TRANSMISSION: Must be 'MANUAL' or 'AUTOMATIC'. 
+                - FUEL_TYPE: Must be 'FLEX', 'GASOLINE', 'ALCOHOL', 'DIESEL', 'ELECTRIC', or 'HYBRID'.
+                - NEVER put 'manual' or 'automatic' inside the fuel_type field.
+                - NEVER populate a field if the user did not specified a value for it, leave it null.
 
                 ### SCHEMA ###
                 {{
@@ -118,16 +125,19 @@ async def run_local_agent():
                         result = await session.call_tool("search_vehicles", current_filters)
                         db_data = result.content[0].text
 
-                        response_prompt = (f"You are a car sales consultant. Use the data provided by the "
-                                           f"search tool to recommend specific vehicles to the user. Do not explain "
-                                           f"code or functions. Respond naturally in a conversational tone."
-                                           f"User asked for a car or for the total quantity fo cars in stock."
-                                           f" Stock data: {db_data}. "
-                                           f"Summarize the cars above in a friendly way:" 
-                                           f"Use a bulleted list. If you need more information about the car, focus"
-                                           f"on manufacturer or model name." 
-                                           f"If an error has occured, please ask the user politely for "
-                                           f"more information")
+                        response_prompt = (
+                            f"### ROLE ###"
+                            f"You are a professional car dealer."
+                            f"### CONTEXT ###"
+                            f"- User is looking for: {clean_filters}"
+                            f"- Results from Database: {db_data}"
+                            f"### INSTRUCTIONS ###"
+                            f"1. If cars were found, list them naturally."
+                            f"2. DO NOT ask for information that is already in 'User is looking for'."
+                            f"3. If 'transmission' is already manual or automatic, DO NOT ask the user to choose again."
+                            f"4. If no cars were found, suggest changing the filters (e.g., another brand)."
+                            f"5. Respond in a friendly tone."
+                        )
                         friendly_text = await ask_ollama(response_prompt, is_json=False)
                         print(f"[C2S Agent]: {friendly_text}")
                     except Exception as e:

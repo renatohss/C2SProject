@@ -33,9 +33,9 @@ def _build_search_query(filters: VehicleSearchFilters) -> Select[Any]:
     query = select(Vehicle)
 
     if filters.manufacturer:
-        query = query.where(Vehicle.manufacturer.ilike(f"{filters.manufacturer}"))
+        query = query.where(Vehicle.manufacturer.ilike(f"%{filters.manufacturer}%"))
     if filters.model_name:
-        query = query.where(Vehicle.model_name.ilike(f"{filters.model_name}"))
+        query = query.where(Vehicle.model_name.ilike(f"%{filters.model_name}%"))
     if filters.year:
         query = query.where(Vehicle.year == filters.year)
     if filters.min_value:
@@ -43,15 +43,15 @@ def _build_search_query(filters: VehicleSearchFilters) -> Select[Any]:
     if filters.max_value:
         query = query.where(Vehicle.value <= filters.max_value)
     if filters.color:
-        query = query.where(Vehicle.color.ilike(f"{filters.color}"))
+        query = query.where(Vehicle.color.ilike(f"%{filters.color}%"))
     if filters.min_mileage:
         query = query.where(Vehicle.mileage >= filters.min_mileage)
     if filters.max_mileage:
         query = query.where(Vehicle.mileage <= filters.max_mileage)
     if filters.fuel_type:
-        query = query.where(Vehicle.fuel_type.ilike(f"{filters.fuel_type}"))
+        query = query.where(Vehicle.fuel_type.ilike(f"%{filters.fuel_type}%"))
     if filters.transmission:
-        query = query.where(Vehicle.transmission.ilike(f"{filters.transmission}"))
+        query = query.where(Vehicle.transmission.ilike(f"%{filters.transmission}%"))
 
     return query
 
