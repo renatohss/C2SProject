@@ -42,12 +42,7 @@ It is recommended to use a virtual environment to isolate dependencies:
 python -m venv venv
 ```
 
-#### Activate on Windows:
-```bash
-venv\Scripts\activate
-```
-
-#### Activate on Linux/macOS:
+#### Activate your virtual environment:
 ```bash
 source venv/bin/activate
 ```
@@ -64,6 +59,8 @@ Start the PostgreSQL database container using the file in the root directory:
 docker-compose up -d
 ```
 This will create the database as configured in your docker-compose.yml.
+
+
 
 
 ### 4. Prepare the Database
@@ -88,3 +85,34 @@ ollama pull llama3.2:3b
 
 ### 6. Environment Variables
 Ensure your .env file in the root directory.
+
+## Execution
+
+Once the database is running and the environment is configured, start the agent via the terminal:
+
+```bash
+python client_terminal.py
+```
+
+### Usage Example
+* **User:** "I am looking for a Ford"
+* **System:** *Extracting filters: {'manufacturer': 'Ford'}*
+* **C2S Agent:** "I found some Ford models for you, such as the EcoSport and the Ka..."
+
+---
+
+## Project Structure
+
+* `server.py`: MCP Server that exposes the database search tool.
+* `client_terminal.py`: Chat interface and Agent orchestration logic.
+* `models.py`: SQLAlchemy table definitions.
+* `docker-compose.yml`: PostgreSQL container orchestration.
+* `requirements.txt`: List of Python dependencies.
+
+---
+
+## Troubleshooting
+
+* **DB Connection Error:** Ensure the Docker container state is **Up**. Use `docker ps` to verify.
+* **Invalid JSON in Response:** The code includes a Regex cleaning layer to handle Ollama's conversational output, but if errors persist, check the status of the Ollama service.
+* **Performance:** Running local LLMs depends on your CPU/GPU resources. If the model takes longer than 30s, the `timeout` in the code may require adjustment.
