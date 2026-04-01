@@ -1,13 +1,12 @@
 from enum import Enum
 
 class FuelType(str, Enum):
-    FLEX = "Flex"
-    GASOLINE = "Gasoline"
-    ALCOHOL = "Alcohol"
-    DIESEL = "Diesel"
-    ELECTRIC = "Electric"
-    HYBRID = "Hybrid"
+    FLEX = "flex"
+    GASOLINE = "gasoline"
+    ALCOHOL = "alcohol"
+    DIESEL = "diesel"
+    ELECTRIC = "electric"
 
 class TransmissionType(str, Enum):
-    MANUAL = "Manual"
-    AUTOMATIC = "Automatic"
+    MANUAL = "manual"
+    AUTOMATIC = "automatic"

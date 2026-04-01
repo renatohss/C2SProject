@@ -5,12 +5,24 @@ import re
 import sys
 
 import httpx
+import structlog
 from dotenv import load_dotenv
 from mcp import stdio_client, ClientSession, StdioServerParameters
 
+
+structlog.configure(
+    processors=[
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer()
+    ],
+    logger_factory=structlog.PrintLoggerFactory(file=sys.stderr),
+)
+log = structlog.get_logger()
+
 load_dotenv()
 OLLAMA_URL = os.getenv("OLLAMA_URL")
-MODEL_NAME = os.getenv("MODEL_NAME")
+MODEL_NAME = os.getenv("OLLAMA_MODEL_NAME")
 
 
 async def ask_ollama(prompt: str, is_json: bool = True):
@@ -21,20 +33,20 @@ async def ask_ollama(prompt: str, is_json: bool = True):
             "stream": False,
             "format": "json" if is_json else None
         }, timeout=30.0)
-
-        raw_content = response.json()["response"]
+        raw_response = response.json().get("response", "")
 
         if is_json:
             try:
-                # Remove qualquer texto antes ou depois do JSON (Regex para pegar entre { })
-                json_match = re.search(r'\{.*\}', raw_content, re.DOTALL)
-                if json_match:
-                    return json.loads(json_match.group())
-                return json.loads(raw_content)
+                match = re.search(r"(\{.*\})", raw_response, re.DOTALL)
+                if match:
+                    json_str = match.group(1)
+                    return json.loads(json_str)
+                return json.loads(raw_response)
             except Exception as e:
-                print(f"⚠️ [AI Debug]: Model returned invalid JSON: {raw_content}")
+                log.error("ollama_error", error=str(e))
+                print(f"[AI Debug] Ollama returned invalid JSON. Raw output: {raw_response}")
                 raise e
-        return raw_content
+        return raw_response
 
 
 async def run_local_agent():
@@ -54,12 +66,17 @@ async def run_local_agent():
             while True:
                 user_input = input("You: ")
                 if user_input.lower() in ["exit", "quit", "sair"]:
+                    print("[C2S Agent]: Goodbye!")
                     break
 
-                # 1. MELHORIA NO PROMPT: Instruções mais rígidas para o JSON
+                if user_input.lower() in ["reset", "clear"]:
+                    print("[C2S Agent]: Clearing search filters.")
+                    current_filters = {}
+
                 extraction_prompt = f"""
                 ### INSTRUCTION ###
                 Extract car search filters from the user input.
+                User may ask for the total quantity of cars you have in stock, return the according value.
                 Return ONLY a JSON object. No conversation. No explanations.
 
                 ### SCHEMA ###
@@ -67,6 +84,12 @@ async def run_local_agent():
                   "manufacturer": "string or null",
                   "model_name": "string or null",
                   "max_value": "number or null"
+                  "min_value": "number or null",
+                  "fuel_type": "string or null",
+                  "color": "string or null",
+                  "transmission": "string or null",
+                  "max_mileage": "number or null",
+                  "min_mileage": "number or null",
                 }}
 
                 ### USER INPUT ###
@@ -77,32 +100,43 @@ async def run_local_agent():
 
                 try:
                     extracted_data = await ask_ollama(extraction_prompt)
-                    # Atualiza apenas o que não for null
                     if isinstance(extracted_data, dict):
                         new_data = {k: v for k, v in extracted_data.items() if v is not None}
                         current_filters.update(new_data)
                 except Exception as e:
+                    log.error("error_extracting_data", error=str(e))
                     print(f"[System Debug]: Failed to parse AI response.")
 
-                # 2. MELHORIA NA LÓGICA: Se o usuário falou algo, tentamos buscar ou perguntar de forma variada
-                # Se temos filtros ou se o usuário digitou algo específico que parece uma marca
-                has_filters = any(current_filters.values())
+                clean_filters = {
+                    k: v for k, v in current_filters.items()
+                    if v is not None and str(v).lower() != "null"
+                }
 
-                if has_filters:
-                    print(f"[System]: Searching for {current_filters}...")
-
+                if clean_filters:
+                    print(f"[System]: Searching for {clean_filters}...")
                     try:
                         result = await session.call_tool("search_vehicles", current_filters)
                         db_data = result.content[0].text
 
-                        response_prompt = f"User asked for a car. Stock data: {db_data}. Summarize this in a friendly way."
+                        response_prompt = (f"You are a car sales consultant. Use the data provided by the "
+                                           f"search tool to recommend specific vehicles to the user. Do not explain "
+                                           f"code or functions. Respond naturally in a conversational tone."
+                                           f"User asked for a car or for the total quantity fo cars in stock."
+                                           f" Stock data: {db_data}. "
+                                           f"Summarize the cars above in a friendly way:" 
+                                           f"Use a bulleted list. If you need more information about the car, focus"
+                                           f"on manufacturer or model name." 
+                                           f"If an error has occured, please ask the user politely for "
+                                           f"more information")
                         friendly_text = await ask_ollama(response_prompt, is_json=False)
                         print(f"[C2S Agent]: {friendly_text}")
                     except Exception as e:
+                        log.error("error_calling_mcp", error=str(e))
                         print(f"[C2S Agent]: I found an issue accessing the stock. Can you try again?")
                 else:
                     print(
-                        "[C2S Agent]: I'm sorry, I didn't quite catch that. Which car brand or price range are you interested in?")
+                        "[C2S Agent]: I'm sorry, I didn't quite catch that. Which car brand or price range "
+                        "are you interested in?")
 
 if __name__ == "__main__":
     asyncio.run(run_local_agent())

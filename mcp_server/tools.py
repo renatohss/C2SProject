@@ -43,46 +43,49 @@ def _build_search_query(filters: VehicleSearchFilters) -> Select[Any]:
     if filters.max_value:
         query = query.where(Vehicle.value <= filters.max_value)
     if filters.color:
-        query = query.where(Vehicle.color == filters.color)
+        query = query.where(Vehicle.color.ilike(f"{filters.color}"))
     if filters.min_mileage:
         query = query.where(Vehicle.mileage >= filters.min_mileage)
     if filters.max_mileage:
         query = query.where(Vehicle.mileage <= filters.max_mileage)
     if filters.fuel_type:
-        query = query.where(Vehicle.fuel_type == filters.fuel_type)
+        query = query.where(Vehicle.fuel_type.ilike(f"{filters.fuel_type}"))
     if filters.transmission:
-        query = query.where(Vehicle.transmission == filters.transmission)
+        query = query.where(Vehicle.transmission.ilike(f"{filters.transmission}"))
 
     return query
 
 
 def list_vehicles(arguments: dict, session: Session) -> list:
+    log.info("mcp_tool_called", tool=Tools.LIST_VEHICLES)
+
     limit = arguments.get("limit", 10)
     result = session.execute(select(Vehicle).limit(limit)).scalars().all()
 
-    log.info("mcp_tool_called", tool=Tools.LIST_VEHICLES, count=len(result))
     return _format_vehicle_response_list(result)
 
 
 def get_vehicle_by_vin(arguments: str, session: Session) -> list[TextContent]:
+    log.info("mcp_tool_called", tool=Tools.GET_VEHICLE_BY_VIN)
+
     search_filter = VINSearch.model_validate(arguments)
     vehicle = session.execute(select(Vehicle).where(Vehicle.vin == search_filter.vin)).scalar_one_or_none()
 
     if not vehicle:
         return [types.TextContent(type="text", text="Vehicle not found.")]
 
-    log.info("mcp_tool_called", tool=Tools.GET_VEHICLE_BY_VIN)
     return _format_vehicle_response_list([vehicle])
 
 
 def search_vehicles(arguments: dict, session: Session) -> list[TextContent]:
+    log.info("mcp_tool_called", tool=Tools.SEARCH_VEHICLES)
+
     search_filters = VehicleSearchFilters.model_validate(arguments)
     query = _build_search_query(search_filters)
     result = session.execute(query).scalars().all()
     if not result:
         return [types.TextContent(type="text", text="No vehicles found with given filters.")]
 
-    log.info("mcp_tool_called", tool=Tools.SEARCH_VEHICLES, count=len(result))
     return _format_vehicle_response_list(result)
 
 
