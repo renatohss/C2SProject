@@ -8,7 +8,6 @@ from mcp.server.models import InitializationOptions
 from mcp.server import NotificationOptions, Server
 from mcp.server.stdio import stdio_server
 import mcp.types as types
-from mcp.types import TextContent
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import structlog
@@ -40,7 +39,7 @@ async def handle_list_tools() -> list[types.Tool]:
 @server.call_tool()
 async def handle_call_tool(
         name: str, arguments: dict | None
-) -> list[TextContent] | None | Any:
+) -> list[types.TextContent] | None | Any:
     session = SessionLocal()
     try:
         return available_tools[name](arguments, session)
